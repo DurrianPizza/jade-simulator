@@ -70,6 +70,15 @@
         .type-stat.aab .type-stat-value { color: #ff9944; }
         .type-stat.abb .type-stat-value { color: #44cc44; }
         .type-stat.normal .type-stat-value { color: #888; }
+        .sim-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(230, 184, 0, 0.2); }
+        .sim-result { background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 20px; margin-top: 15px; }
+        .sim-result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .sim-result-row:last-child { border-bottom: none; }
+        .sim-result-label { color: #888; }
+        .sim-result-value { color: #e6b800; font-weight: bold; }
+        .sim-result-value.positive { color: #4ecdc4; }
+        .sim-result-value.negative { color: #ff6b6b; }
+        .sim-progress { text-align: center; padding: 20px; color: #888; }
     </style>
 </head>
 <body>
@@ -106,6 +115,15 @@
                     <div class="stat-item"><div class="stat-label">回本率</div><div class="stat-value" id="breakevenRate">0%</div></div>
                     <div class="stat-item"><div class="stat-label">开玉次数</div><div class="stat-value" id="openCount">0</div></div>
                     <div class="stat-item"><div class="stat-label">高价值玉 (≥1000)</div><div class="stat-value" id="highValueCount">0</div></div>
+                </div>
+                <div class="sim-section">
+                    <h3 class="panel-title" style="font-size:1em;">概率分析（蒙特卡洛模拟5万次）</h3>
+                    <div class="input-group">
+                        <label>开玉数量:</label>
+                        <input type="number" id="simCount" value="100" min="1" max="10000">
+                        <button class="btn btn-secondary" onclick="runSimulation()">开始模拟</button>
+                    </div>
+                    <div id="simResult"></div>
                 </div>
             </div>
         </div>
@@ -2432,6 +2450,80 @@
         function calculateBreakeven() {
             // 简化估算
             document.getElementById('breakevenCount').textContent = '72 块';
+        }
+
+        // 蒙特卡洛模拟
+        function runSimulation() {
+            const n = parseInt(document.getElementById('simCount').value) || 100;
+            const cost = n * 150;
+            const simulations = 50000;
+            const simResult = document.getElementById('simResult');
+
+            simResult.innerHTML = '<div class="sim-progress">模拟计算中...</div>';
+
+            // 使用setTimeout让UI有机会更新
+            setTimeout(() => {
+                const results = [];
+
+                for (let i = 0; i < simulations; i++) {
+                    let revenue = 0;
+                    for (let j = 0; j < n; j++) {
+                        revenue += openJade().price;
+                    }
+                    results.push(revenue - cost);
+                }
+
+                results.sort((a, b) => a - b);
+
+                const avgProfit = results.reduce((a, b) => a + b, 0) / results.length;
+                const p10 = results[Math.floor(simulations * 0.1)];
+                const p20 = results[Math.floor(simulations * 0.2)];
+                const p50 = results[Math.floor(simulations * 0.5)];
+                const p80 = results[Math.floor(simulations * 0.8)];
+                const p90 = results[Math.floor(simulations * 0.9)];
+                const lossRate = results.filter(r => r < 0).length / simulations * 100;
+
+                simResult.innerHTML = `
+                    <div class="sim-result">
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">总成本</span>
+                            <span class="sim-result-value">${cost.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">平均净收益</span>
+                            <span class="sim-result-value ${avgProfit >= 0 ? 'positive' : 'negative'}">${avgProfit >= 0 ? '+' : ''}${avgProfit.toFixed(0)} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">最差10%情况</span>
+                            <span class="sim-result-value negative">${p10.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">最差20%情况</span>
+                            <span class="sim-result-value negative">${p20.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">中位数（50%）</span>
+                            <span class="sim-result-value ${p50 >= 0 ? 'positive' : 'negative'}">${p50 >= 0 ? '+' : ''}${p50.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">最好20%情况</span>
+                            <span class="sim-result-value positive">+${p80.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">最好10%情况</span>
+                            <span class="sim-result-value positive">+${p90.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">80%概率范围</span>
+                            <span class="sim-result-value">${p10.toLocaleString()} ~ +${p90.toLocaleString()} 元</span>
+                        </div>
+                        <div class="sim-result-row">
+                            <span class="sim-result-label">亏损概率</span>
+                            <span class="sim-result-value negative">${lossRate.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `;
+            }, 50);
         }
         
         init();
